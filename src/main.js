@@ -51,6 +51,27 @@ function drawOrders(){
   document.querySelector('#empty-create')?.addEventListener('click',()=>orderForm());
   document.querySelectorAll('[data-pay]').forEach(b=>b.onclick=()=>paymentForm(orders.find(o=>o.id===b.dataset.pay)));
   document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>orderForm(orders.find(o=>o.id===b.dataset.edit)));
+  document.querySelectorAll('[data-edit]').forEach(b=>{
+    const remove=document.createElement('button');
+    remove.className='delete-order';
+    remove.textContent='🗑 Eliminar pedido';
+    remove.onclick=()=>deleteOrder(orders.find(o=>o.id===b.dataset.edit));
+    b.closest('article').append(remove);
+  });
+}
+function deleteOrder(order) {
+  const d=modal('Eliminar pedido',`<p>¿Eliminar el pedido de <strong>${esc(name(order.client_id))}</strong> del ${date(order.order_date)}?</p><p class="muted">${order.items.map(i=>`${esc(i.quantity)} × ${esc(i.description)}`).join('<br>')}</p><div class="notice error">También se eliminarán los pagos de este pedido (${money(paid(order.id)/100)}). Esta acción no se puede deshacer.</div>`,async()=>{
+    const {data,error}=await db.from('orders').delete().eq('id',order.id).select('id');
+    if(error){
+      if(error.code==='42501'||error.code==='23503')throw Error('Falta activar la eliminación en Supabase. Ejecuta el archivo enable-order-deletion.sql en el Editor SQL y vuelve a intentarlo.');
+      throw error;
+    }
+    if(!data?.length)throw Error('No se eliminó el pedido. Actualiza la lista y vuelve a intentarlo.');
+  });
+  const submit=d.querySelector('[type="submit"]');
+  submit.textContent='Sí, eliminar pedido';
+  submit.classList.add('danger-button');
+  d.querySelector('#cancel').focus();
 }
 function modal(title,body,onSave){ document.querySelector('dialog')?.remove();const d=document.createElement('dialog');d.innerHTML=`<form><h2>${title}</h2>${body}<p class="form-error error" role="alert"></p><div class="actions"><button type="button" class="secondary" id="cancel">Cancelar</button><button type="submit">Guardar</button></div></form>`;document.body.append(d);d.querySelector('#cancel').onclick=()=>d.close();d.onclose=()=>d.remove();d.querySelector('form').onsubmit=async e=>{e.preventDefault();const buttons=d.querySelectorAll('button');buttons.forEach(b=>b.disabled=true);let saved=false;try{await onSave(new FormData(e.target),d);saved=true;d.close();toast('Guardado en la base de datos');await load();}catch(err){if(saved)toast('Guardado. No se pudo actualizar la pantalla: '+err.message);else d.querySelector('.form-error').textContent=err.message;}finally{buttons.forEach(b=>b.disabled=false);}};d.showModal();return d;}
 function clientForm(){modal('Nuevo cliente','<div class="grid"><label>Nombre<input name="first_name" required maxlength="100" autocomplete="given-name"></label><label>Apellido<input name="last_name" required maxlength="100" autocomplete="family-name"></label></div>',async f=>{const first_name=f.get('first_name').trim(),last_name=f.get('last_name').trim();if(!first_name||!last_name)throw Error('Completa el nombre y apellido.');const {error}=await db.from('clients').insert({first_name,last_name});if(error)throw error;});}

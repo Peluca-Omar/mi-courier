@@ -31,7 +31,7 @@ create table public.payments (
  amount numeric(12,2) not null check(amount > 0),
  paid_on date not null default current_date,
  created_at timestamptz not null default now(),
- foreign key(order_id,owner) references public.orders(id,owner)
+  foreign key(order_id,owner) references public.orders(id,owner) on delete cascade
 );
 alter table public.clients enable row level security;
 alter table public.orders enable row level security;
@@ -39,8 +39,9 @@ alter table public.payments enable row level security;
 create policy own_clients on public.clients for all to authenticated using(owner = auth.uid()) with check(owner = auth.uid());
 create policy own_orders on public.orders for all to authenticated using(owner = auth.uid()) with check(owner = auth.uid());
 create policy own_payments on public.payments for all to authenticated using(owner = auth.uid()) with check(owner = auth.uid());
--- La interfaz no borra registros. Evitar borrados accidentales también por API.
+-- Los pagos se eliminan automáticamente junto con su pedido.
 revoke delete on public.clients, public.orders, public.payments from authenticated;
+grant delete on public.orders to authenticated;
 grant usage on schema public to authenticated;
 grant select, insert, update on public.clients, public.orders, public.payments to authenticated;
 create index orders_client on public.orders(client_id);
